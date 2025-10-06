@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .image-picker-container { max-width: 900px; margin: auto; }
+    .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
+    .drive-image { border: 2px solid #ddd; border-radius: 8px; padding: 5px; cursor: pointer; transition: all 0.2s; }
+    .drive-image:hover, .drive-image.selected { border-color: #007bff; box-shadow: 0 0 10px rgba(0,123,255,0.5); }
+    .drive-image img { width: 100%; display: block; }
+    .selection-area { margin-top: 2em; padding: 1.5em; background: #f8f9fa; border-radius: 8px; }
+    .selection-box { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px dashed #ccc; margin-bottom: 10px; }
+    .selection-box.filled { background-color: #e9f5ff; border-color: #007bff; }
+</style>
+
+<div class="image-picker-container">
+    <h2>Select Images for Patient: {{ full_name }}</h2>
+    <p>Click on an image below and then assign it to a stage.</p>
+
+    <h4>Available Images from Google Drive:</h4>
+    <div class="image-grid">
+        {% for file in drive_files %}
+        <div class="drive-image" data-id="{{ file.id }}" data-name="{{ file.name }}" onclick="selectImage(this)">
+            <img src="{{ file.thumbnailLink }}" alt="{{ file.name }}">
+            <p style="text-align: center; font-size: 12px; word-break: break-all;">{{ file.name }}</p>
+        </div>
+        {% empty %}
+        <p>No files found in the specified Google Drive folder.</p>
+        {% endfor %}
+    </div>
+
+    <hr style="margin: 2em 0;">
+
+    <form method="post" action="{% url 'patient_process_drive' %}">
+        {% csrf_token %}
+        <div class="selection-area">
+            <h4>Assign Stages</h4>
+            <input type="hidden" name="patient_id" value="{{ patient_id }}">
+            <input type="hidden" name="full_name" value="{{ full_name }}">
+            <input type="hidden" name="date_of_birth" value="{{ dob }}">
+
+            <input type="hidden" id="early_image_id" name="early_image_id">
+            <input type="hidden" id="mid_image_id" name="mid_image_id">
+            <input type="hidden" id="late_image_id" name="late_image_id">
+            
+            <div id="early_box" class="selection-box"><span>Early Stage Image: (none selected)</span><button type="button" onclick="assignStage('early')">Assign Selected</button></div>
+            <div id="mid_box" class="selection-box"><span>Mid Stage Image: (none selected)</span><button type="button" onclick="assignStage('mid')">Assign Selected</button></div>
+            <div id="late_box" class="selection-box"><span>Late Stage Image: (none selected)</span><button type="button" onclick="assignStage('late')">Assign Selected</button></div>
+        </div>
+        <button type="submit" style="width: 100%; padding: 15px; font-size: 18px; margin-top: 1em; background-color: #28a745; color: white;">Create Patient</button>
+    </form>
+</div>
+
+<script>
+    let selectedImage = null;
+
+    function selectImage(element) {
+        // Remove 'selected' class from all other images
+        document.querySelectorAll('.drive-image').forEach(img => img.classList.remove('selected'));
+        // Add 'selected' class to the clicked image
+        element.classList.add('selected');
+        selectedImage = {
+            id: element.dataset.id,
+            name: element.dataset.name
+        };
+    }
+
+    function assignStage(stage) {
+        if (!selectedImage) {
+            alert('Please select an image from the grid first!');
+            return;
+        }
+        // Set the hidden input value
+        document.getElementById(stage + '_image_id').value = selectedImage.id;
+        
+        // Update the display box
+        const box = document.getElementById(stage + '_box');
+        box.querySelector('span').textContent = stage.charAt(0).toUpperCase() + stage.slice(1) + ' Stage Image: ' + selectedImage.name;
+        box.classList.add('filled');
+
+        // Clear selection
+        document.querySelectorAll('.drive-image').forEach(img => img.classList.remove('selected'));
+        selectedImage = null;
+    }
+</script>
+{% endblock %}

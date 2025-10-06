@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .profile-card {
+        max-width: 600px;
+        margin: auto;
+        padding: 2em;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    .profile-card h2 {
+        border-bottom: 2px solid #eee;
+        padding-bottom: 0.5em;
+    }
+    .profile-card p {
+        font-size: 1.1em;
+        line-height: 1.6;
+    }
+    .back-link {
+        display: inline-block;
+        margin-top: 1.5em;
+        text-decoration: none;
+        color: #007bff;
+    }
+</style>
+
+<div class="profile-card">
+    <h2>Patient Profile</h2>
+    <p><strong>Full Name:</strong> {{ patient.full_name }}</p>
+    <p><strong>Patient ID:</strong> {{ patient.patient_id }}</p>
+    <p><strong>Date of Birth:</strong> {{ patient.date_of_birth|date:"F d, Y"|default:"Not Provided" }}</p>
+    <p><strong>Registration Date:</strong> {{ patient.date_registered|date:"F d, Y" }}</p>
+
+    <a href="{% url 'dashboard' %}" class="back-link">← Back to Dashboard</a>
+
+    
+
+</div>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Main container and card styling */
+    .upload-container {
+        max-width: 900px; /* Wider container for the 3-column layout */
+        margin: 2em auto;
+        background: #ffffff;
+        padding: 2.5em;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+        border: 1px solid #e9ecef;
+    }
+
+    /* Typography */
+    .upload-container h2 {
+        text-align: center;
+        margin-bottom: 1.5em;
+        font-weight: 600;
+        color: #343a40;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.8em;
+    }
+    
+    /* Three-column grid for the upload boxes */
+    .upload-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr); /* Three equal columns */
+        gap: 1.5em;
+        margin-bottom: 2em;
+        text-align: center;
+    }
+    
+    /* Styling for each custom upload box */
+    .upload-box {
+        position: relative;
+        border: 2px dashed #ced4da;
+        border-radius: 8px;
+        padding: 2em 1em;
+        transition: border-color 0.2s, background-color 0.2s;
+        cursor: pointer;
+    }
+
+    .upload-box:hover, .upload-box.drag-over {
+        border-color: #007bff;
+        background-color: #f8f9fa;
+    }
+
+    /* Hiding the default file input */
+    .upload-box input[type="file"] {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        opacity: 0;
+        cursor: pointer;
+    }
+
+    /* Styling for the prompt text and icon */
+    .upload-box .upload-icon {
+        font-size: 2.5em;
+        color: #007bff;
+    }
+
+    .upload-box .upload-text {
+        margin-top: 0.5em;
+        color: #6c757d;
+        font-weight: 500;
+    }
+
+    /* Styling for the selected file name */
+    .upload-box .file-name {
+        margin-top: 1em;
+        font-size: 0.9em;
+        color: #28a745;
+        font-weight: bold;
+        word-break: break-all;
+    }
+
+    /* Button styling */
+    .upload-container button {
+        width: 100%;
+        background-color: #28a745;
+        color: white;
+        padding: 15px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: 600;
+        transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+    }
+
+    .upload-container button:hover {
+        background-color: #218838;
+        transform: translateY(-2px);
+    }
+</style>
+
+<div class="upload-container">
+    <h2>Step 3: Upload Patient Images</h2>
+    
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        
+        <div class="upload-grid">
+            <div class="upload-box">
+                <label for="{{ form.early_image.id_for_label }}">
+                    <div class="upload-icon">⬆️</div>
+                    <div class="upload-text">Early Stage Image</div>
+                    <div class="file-name" id="early-file-name"></div>
+                </label>
+                {{ form.early_image }}
+            </div>
+
+            <div class="upload-box">
+                <label for="{{ form.mid_image.id_for_label }}">
+                    <div class="upload-icon">⬆️</div>
+                    <div class="upload-text">Mid Stage Image</div>
+                    <div class="file-name" id="mid-file-name"></div>
+                </label>
+                {{ form.mid_image }}
+            </div>
+
+            <div class="upload-box">
+                <label for="{{ form.late_image.id_for_label }}">
+                    <div class="upload-icon">⬆️</div>
+                    <div class="upload-text">Late Stage Image</div>
+                    <div class="file-name" id="late-file-name"></div>
+                </label>
+                {{ form.late_image }}
+            </div>
+        </div>
+        
+        <button type="submit">Create Patient & Save Images</button>
+
+        <div class="back-link-container">
+            <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancel and Go Back</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    function setupUploadBox(inputId, textId, boxClass) {
+        const fileInput = document.getElementById(inputId);
+        const fileNameText = document.getElementById(textId);
+        const uploadBox = fileInput.closest(boxClass);
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileNameText.textContent = fileInput.files[0].name;
+            } else {
+                fileNameText.textContent = '';
+            }
+        });
+
+        // Visual feedback for drag-and-drop
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('drag-over');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('drag-over');
+        });
+
+        uploadBox.addEventListener('drop', () => {
+            uploadBox.classList.remove('drag-over');
+        });
+    }
+
+    setupUploadBox('{{ form.early_image.id_for_label }}', 'early-file-name', '.upload-box');
+    setupUploadBox('{{ form.mid_image.id_for_label }}', 'mid-file-name', '.upload-box');
+    setupUploadBox('{{ form.late_image.id_for_label }}', 'late-file-name', '.upload-box');
+</script>
+
+{% endblock %}

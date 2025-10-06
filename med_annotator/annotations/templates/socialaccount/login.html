@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+    /* Use the global stylesheet for base styles */
+    /* Additional page-specific styles */
+    .auth-page-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh; /* Center vertically in the viewport */
+        background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+
+    /* Override card margin for this specific page */
+    .card {
+        margin: 1em;
+        border: none; /* Remove default border for a cleaner shadow look */
+    }
+    
+    .welcome-text {
+        font-size: 0.9rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Custom Google Button Styling */
+    .btn-google {
+        background-color: #ffffff;
+        color: #4A5568; /* A softer black */
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        font-weight: 500;
+    }
+
+    .btn-google:hover {
+        background-color: #f8f9fa;
+        border-color: #CBD5E0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+    
+    .btn-google .google-icon {
+        width: 20px;
+        height: 20px;
+        vertical-align: middle;
+    }
+
+</style>
+
+<div class="auth-page-wrapper">
+    <div class="card shadow-lg animate__animated animate__fadeInUp" style="max-width: 450px; border-radius: 1rem;">
+        <div class="card-body text-center p-5">
+            
+            <p class="welcome-text">WELCOME TO MEDICAL ANNOTATOR</p>
+            <h2 class="card-title mb-4 fw-bold">Sign In</h2>
+            
+            {% if messages %}
+            <ul class="messages list-unstyled mb-3">
+                {% for message in messages %}
+                <li class="alert alert-{{ message.tags }} animate__animated animate__fadeIn">{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            <p class="mb-4 text-muted">You are about to securely sign in using your Google account.</p>
+            
+            <form method="post" id="googleSignInForm">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-google w-100 d-flex align-items-center justify-content-center" id="signInBtn">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" alt="Google Logo" class="google-icon me-3">
+                    <span class="flex-grow-1">Continue with Google</span>
+                    <span class="spinner-border spinner-border-sm d-none ms-3" id="loadingSpinner" role="status" aria-hidden="true"></span>
+                </button>
+            </form>
+            <small class="text-muted d-block mt-3">We will never post without your permission.</small>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+
+<script>
+    // Show spinner on submit
+    document.getElementById('googleSignInForm').addEventListener('submit', function() {
+        const btn = document.getElementById('signInBtn');
+        btn.setAttribute('disabled', 'disabled');
+        // Slightly re-arrange content for spinner
+        btn.querySelector('.flex-grow-1').textContent = 'Authenticating...';
+        document.getElementById('loadingSpinner').classList.remove('d-none');
+    });
+</script>
+{% endblock %}

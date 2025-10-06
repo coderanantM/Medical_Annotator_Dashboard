@@ -1,0 +1,162 @@
+/* annotations/static/css/style.css */
+
+/* --- Base & Typography --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    background-color: #f8f9fa;
+    color: #343a40;
+    line-height: 1.6;
+}
+
+h2 {
+    font-weight: 600;
+    color: #343a40;
+    text-align: center;
+    margin-top: 0;
+}
+
+/* --- Navigation Bar --- */
+nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1em 2em;
+    background-color: #ffffff;
+    border-bottom: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+nav a {
+    text-decoration: none;
+    color: #007bff;
+    font-weight: 500;
+}
+
+/* --- Main Content Container --- */
+main {
+    padding: 2em;
+}
+
+/* --- Card Style for Forms & Info Boxes --- */
+.card {
+    max-width: 500px;
+    margin: 2em auto;
+    background: #ffffff;
+    padding: 2.5em;
+    border-radius: 12px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    border: 1px solid #e9ecef;
+}
+
+.card h2 {
+    margin-bottom: 1.5em;
+    border-bottom: 1px solid #dee2e6;
+    padding-bottom: 0.8em;
+}
+
+/* --- General Form Styling --- */
+form p {
+    margin-bottom: 1.5em;
+}
+
+form label {
+    display: block;
+    margin-bottom: 0.5em;
+    font-weight: 500;
+    color: #495057;
+}
+
+form input[type="text"],
+form input[type="password"],
+form input[type="email"],
+form input[type="date"] {
+    width: 100%;
+    padding: 12px 15px;
+    margin: 0;
+    box-sizing: border-box;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+form input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+/* --- Button Styles --- */
+.btn {
+    display: inline-block;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+}
+.btn-primary:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: white;
+}
+.btn-danger:hover {
+    background-color: #c82333;
+    transform: translateY(-2px);
+}
+
+.btn-full-width {
+    width: 100%;
+}
+
+
+/* --- Django Messages / Alerts --- */
+.messages {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5em 0;
+}
+.alert {
+    padding: 1rem;
+    border: 1px solid transparent;
+    border-radius: 8px;
+}
+.alert-success {
+    color: #0f5132;
+    background-color: #d1e7dd;
+    border-color: #badbcc;
+}
+.alert-error {
+    color: #842029;
+    background-color: #f8d7da;
+    border-color: #f5c2c7;
+}
+
+.back-link-container {
+    text-align: center;
+    margin-top: 2em;
+}
+
+/* A new style for secondary/back buttons */
+.btn-secondary {
+    background-color: #6c757d; /* A neutral gray */
+    color: white;
+}
+.btn-secondary:hover {
+    background-color: #5a6268;
+    transform: translateY(-2px);
+}

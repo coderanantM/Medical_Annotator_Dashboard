@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .dashboard-container { max-width: 900px; margin: auto; }
+    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; }
+    .add-btn { background-color: #28a745; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; }
+    
+    .patient-table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+    .patient-table th, .patient-table td { padding: 12px 15px; border-bottom: 1px solid #ddd; text-align: left; }
+    .patient-table th { background-color: #f4f4f9; }
+    .patient-table tr:hover { background-color: #f9f9f9; }
+
+    .actions .btn { 
+        padding: 8px 12px; 
+        text-decoration: none; 
+        color: white; 
+        border-radius: 5px; 
+        margin-right: 5px;
+        font-size: 14px;
+    }
+    .profile-btn { background-color: #17a2b8; } /* Teal */
+    .report-btn { background-color: #007bff; }  /* Blue */
+</style>
+
+<div class="dashboard-container">
+    <div class="dashboard-header">
+        <h2>Patient Dashboard 🩺</h2>
+        <a href="{% url 'patient_create_details' %}" class="add-btn">＋ Add New Patient</a>
+    </div>
+
+    <table class="patient-table">
+        <thead>
+            <tr>
+                <th>Patient ID</th>
+                <th>Full Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for patient in patients %}
+            <tr>
+                <td>{{ patient.patient_id }}</td>
+                <td>{{ patient.full_name }}</td>
+                <td class="actions">
+                    <a href="{% url 'patient_profile' patient.id %}" class="btn profile-btn">👤 View Profile</a>
+                    <a href="{% url 'annotate' patient.id %}" class="btn report-btn">📄 Annotate Report</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="3" style="text-align: center; padding: 20px;">No patients found. Click "Add New Patient" to get started.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

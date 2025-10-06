@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% load socialaccount %}
+{% block content %}
+<style>
+    .auth-container {
+        max-width: 400px;
+        margin: 3em auto;
+        background: #fff;
+        padding: 2.5em 2em 2em 2em;
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .auth-container h2 {
+        margin-bottom: 1.5em;
+        color: #007bff;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    .auth-container form {
+        width: 100%;
+    }
+    .auth-container button, .google-btn {
+        width: 100%;
+        background-color: #007bff;
+        color: white;
+        padding: 12px 0;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 17px;
+        margin-top: 1em;
+        transition: background 0.2s;
+    }
+    .auth-container button:hover, .google-btn:hover {
+        background-color:rgb(142, 216, 135);
+    }
+    .google-btn {
+        background: #fff;
+        color: #444;
+        border: 1px solid #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        font-weight: 500;
+        margin-bottom: 1em;
+    }
+    .google-btn img {
+        height: 22px;
+    }
+    .auth-container .errorlist {
+        color: #d9534f;
+        margin-bottom: 1em;
+        list-style: none;
+        padding: 0;
+    }
+    .auth-container p {
+        text-align: center;
+        margin-top: 1.5em;
+    }
+    .auth-container p a {
+        color: #007bff;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .divider {
+        width: 100%;
+        text-align: center;
+        margin: 1.5em 0 1em 0;
+        color: #888;
+        font-size: 15px;
+        position: relative;
+    }
+    .divider:before, .divider:after {
+        content: "";
+        display: inline-block;
+        width: 40%;
+        height: 1px;
+        background: #eee;
+        vertical-align: middle;
+        margin: 0 8px;
+    }
+</style>
+
+<div class="auth-container">
+    <h2>Welcome Back</h2>
+
+    <!-- Google Login Button -->
+    <a class="google-btn" href="{% provider_login_url 'google' %}">
+        <span>Sign in with Google</span>
+        <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" alt="Google logo">
+    </a>
+
+    <div class="divider">or</div>
+
+    <form method="post" action="{% url 'account_login' %}">
+        {% csrf_token %}
+        {% if form.errors %}
+            <ul class="errorlist">
+                {% for field in form %}
+                    {% for error in field.errors %}
+                        <li>{{ error }}</li>
+                    {% endfor %}
+                {% endfor %}
+                {% for error in form.non_field_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {{ form.as_p }}
+        <button type="submit">Login</button>
+    </form>
+
+    <p>
+        Don't have an account?
+        <a href="{% url 'signup' %}">Register here</a>
+    </p>
+</div>
+{% endblock %}

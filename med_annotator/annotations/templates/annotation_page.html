@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    .container { max-width: 1200px; margin: auto; }
+    .image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .image-card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; text-align: center; background: #fff; }
+    .image-card img { max-width: 100%; height: auto; margin-bottom: 15px; }
+    .form-group { margin: 10px 0; text-align: left; }
+    .nav-buttons { margin-top: 30px; display: flex; justify-content: space-between; }
+    button, .nav-buttons a { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
+    .save-btn { background-color: #28a745; color: white; }
+    .nav-buttons a { background-color: #007bff; color: white; }
+    .nav-buttons .disabled { background-color: #ccc; cursor: not-allowed; }
+</style>
+
+<div class="container">
+    <h2> Annotations for6e: {{patient.full_name}} </h2>
+    <form method="POST">
+        {% csrf_token %}
+        <div class="image-grid">
+            {% for image in images %}
+            <div class="image-card">
+                <h4>{{ image.get_stage_display }} Stage</h4>
+                <img src="{{ image.image.url }}" alt="{{ image.get_stage_display }}">
+                
+                <div class="form-group">
+                    <input type="checkbox" name="image_{{ image.id }}_vasculitis" {% if image.vasculitis_present %}checked{% endif %}>
+                    <label>Vasculitis Present</label>
+                </div>
+                
+                <div class="form-group">
+                    <label>Activity:</label>
+                    <input type="radio" name="image_{{ image.id }}_activity" value="active" {% if image.activity == 'active' %}checked{% endif %}> Active
+                    <input type="radio" name="image_{{ image.id }}_activity" value="inactive" {% if image.activity == 'inactive' %}checked{% endif %}> Inactive
+                </div>
+
+                <div class="form-group">
+                    <label for="quality_{{ image.id }}">Quality: {{ image.quality }}</label>
+                    <input type="range" id="quality_{{ image.id }}" name="image_{{ image.id }}_quality" min="0" max="10" value="{{ image.quality }}">
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div style="text-align: center; margin-top: 20px;">
+            <button type="submit" class="save-btn">Save All Changes</button>
+        </div>
+    </form>
+    
+    <div class="nav-buttons">
+        {% if prev_patient_id %}
+            <a href="{% url 'annotate' prev_patient_id %}">⬅️ Previous Patient</a>
+        {% else %}
+            <a class="disabled">⬅️ Previous Patient</a>
+        {% endif %}
+        
+        {% if next_patient_id %}
+            <a href="{% url 'annotate' next_patient_id %}">Next Patient ➡️</a>
+        {% else %}
+            <a class="disabled">Next Patient ➡️</a>
+        {% endif %}
+    </div>
+
+    <div class="back-link-container">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
+    </div>
+
+    <div class="nav-buttons">
+    ...
+    </div>
+
+</div>
+{% endblock %}

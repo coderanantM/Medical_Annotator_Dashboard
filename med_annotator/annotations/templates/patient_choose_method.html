@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    .choice-container {
+        text-align: center;
+        max-width: 700px;
+        margin: auto;
+        padding: 2em;
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    }
+    .step-box {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1.5em;
+        margin-top: 2em;
+    }
+    .step-box h3 { margin-top: 0; }
+    .btn {
+        display: inline-block;
+        margin: 10px;
+        padding: 15px 30px;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .drive-btn { background-color: #1a73e8; } /* Google Blue */
+    .upload-btn { background-color: #28a745; } /* Green */
+</style>
+
+<div class="choice-container">
+    <h2>Step 2: Get Images and Upload</h2>
+    <p>Follow these two steps to add the patient's images.</p>
+
+    <div class="step-box">
+        <h3>Step 1: Download Images from Google Drive</h3>
+        <p>Click the button below to open the shared folder in a new tab. Find the correct three images for this patient and download them to your computer.</p>
+        
+        <a href="https://drive.google.com/drive/folders/1_vDh3Oizwndg_9Q7D8yJPjERswzZwocu?usp=sharing" target="_blank" class="btn drive-btn">
+            📂 Open Google Drive Folder
+        </a>
+    </div>
+
+    <div class="step-box">
+        <h3>Step 2: Upload the Downloaded Images</h3>
+        <p>After you have saved the images to your computer, click here to proceed to the upload page.</p>
+        
+        <a href="{% url 'patient_upload_local' %}" class="btn upload-btn">
+            ⬆️ Proceed to Upload Files
+        </a>
+    </div>
+
+    <div class="back-link-container">
+        <a href="{% url 'dashboard' %}" class="btn btn-secondary">Cancel and Go Back</a>
+    </div>
+
+</div>
+{% endblock %}
