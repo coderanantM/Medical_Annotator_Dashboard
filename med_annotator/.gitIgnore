@@ -12,3 +12,6 @@ staticfiles/
 .env
 venv/
 env/
+
+# Secrets
+service-account.json
