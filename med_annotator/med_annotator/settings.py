@@ -66,7 +66,8 @@ SOCIALACCOUNT_PROVIDERS = {
             'https://www.googleapis.com/auth/drive.readonly',
         ],
         'AUTH_PARAMS': {
-            'access_type': 'offline', # This is crucial to get a refresh token
+            'access_type': 'offline', 
+            'prompt': 'consent',
         }
     }
 }
@@ -148,9 +149,9 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-LOGIN_REDIRECT_URL = 'dashboard' 
+LOGIN_REDIRECT_URL = 'annotation_queue' 
 LOGOUT_REDIRECT_URL = '/accounts/login'    
-LOGIN_URL = 'login'
+LOGIN_URL = 'account_login'
 
 SITE_ID = 1
 
@@ -161,4 +162,5 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_LOGIN_ON_GET = False
+GOOGLE_SERVICE_ACCOUNT_KEY = os.path.join(BASE_DIR, 'service-account.json')

@@ -9,7 +9,7 @@
 </head>
 <body>
     <nav>
-        <a href="{% url 'dashboard' %}">Dashboard</a>
+        <a href="{% url 'annotation_queue' %}">Annotation Queue</a>
         {% if user.is_authenticated %}
             <span>Hello, {{ user.username }}! <a href="{% url 'account_logout' %}">Logout</a></span>
         {% else %}

@@ -1,6 +1,16 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% if messages %}
+  <div class="container-fluid" style="margin-top: 1em;">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
 <style>
     .dashboard-container { max-width: 900px; margin: auto; }
     .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; }
@@ -24,32 +34,40 @@
 </style>
 
 <div class="dashboard-container">
-    <div class="dashboard-header">
-        <h2>Patient Dashboard 🩺</h2>
-        <a href="{% url 'patient_create_details' %}" class="add-btn">＋ Add New Patient</a>
-    </div>
-
-    <table class="patient-table">
+    <h2>Doctor Dashboard</h2>
+    
+    <a href="{% url 'sync_drive' %}" class="btn btn-primary mb-3">
+        Sync with Google Drive
+    </a>
+    
+    <table class="table table-hover">
         <thead>
             <tr>
                 <th>Patient ID</th>
-                <th>Full Name</th>
-                <th>Actions</th>
+                <th>Status</th>
+                <th>Action</th>
             </tr>
         </thead>
         <tbody>
             {% for patient in patients %}
             <tr>
                 <td>{{ patient.patient_id }}</td>
-                <td>{{ patient.full_name }}</td>
-                <td class="actions">
-                    <a href="{% url 'patient_profile' patient.id %}" class="btn profile-btn">👤 View Profile</a>
-                    <a href="{% url 'annotate' patient.id %}" class="btn report-btn">📄 Annotate Report</a>
+                <td>
+                    {% if patient.is_annotated %}
+                        <span class="badge bg-success">Annotated</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'annotate' patient.patient_id %}" class="btn btn-sm btn-info">
+                        View / Annotate
+                    </a>
                 </td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="3" style="text-align: center; padding: 20px;">No patients found. Click "Add New Patient" to get started.</td>
+                <td colspan="3">No patients found. Try syncing with Google Drive.</td>
             </tr>
             {% endfor %}
         </tbody>

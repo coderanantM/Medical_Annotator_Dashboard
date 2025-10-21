@@ -1,72 +1,137 @@
 {% extends 'base.html' %}
 {% block content %}
 <style>
-    .container { max-width: 1200px; margin: auto; }
-    .image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .image-card { border: 1px solid #ccc; padding: 15px; border-radius: 8px; text-align: center; background: #fff; }
-    .image-card img { max-width: 100%; height: auto; margin-bottom: 15px; }
-    .form-group { margin: 10px 0; text-align: left; }
-    .nav-buttons { margin-top: 30px; display: flex; justify-content: space-between; }
-    button, .nav-buttons a { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; text-decoration: none; }
-    .save-btn { background-color: #28a745; color: white; }
-    .nav-buttons a { background-color: #007bff; color: white; }
-    .nav-buttons .disabled { background-color: #ccc; cursor: not-allowed; }
+    .image-gallery {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1em;
+        margin-bottom: 2em;
+    }
+    .image-gallery img {
+        width: 100%;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .annotation-form {
+        max-width: 600px;
+        margin: auto;
+        padding: 2em;
+        background: #fff;
+        border-radius: 8px;
+    }
+    /* Styles for the new nav buttons */
+    .nav-buttons {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2em;
+        max-width: 800px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    
+    /* Style for the slider value display */
+    .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 1em;
+    }
+    .slider-container input[type="range"] {
+        flex-grow: 1;
+    }
+    .slider-container #quality-value {
+        font-weight: bold;
+        font-size: 1.2em;
+        color: #007bff;
+        min-width: 25px; /* Ensures layout doesn't jump */
+    }
 </style>
 
-<div class="container">
-    <h2> Annotations for6e: {{patient.full_name}} </h2>
-    <form method="POST">
-        {% csrf_token %}
-        <div class="image-grid">
-            {% for image in images %}
-            <div class="image-card">
-                <h4>{{ image.get_stage_display }} Stage</h4>
-                <img src="{{ image.image.url }}" alt="{{ image.get_stage_display }}">
-                
-                <div class="form-group">
-                    <input type="checkbox" name="image_{{ image.id }}_vasculitis" {% if image.vasculitis_present %}checked{% endif %}>
-                    <label>Vasculitis Present</label>
-                </div>
-                
-                <div class="form-group">
-                    <label>Activity:</label>
-                    <input type="radio" name="image_{{ image.id }}_activity" value="active" {% if image.activity == 'active' %}checked{% endif %}> Active
-                    <input type="radio" name="image_{{ image.id }}_activity" value="inactive" {% if image.activity == 'inactive' %}checked{% endif %}> Inactive
-                </div>
+{% if messages %}
+  <div class="container-fluid" style="margin-top: 1em; max-width: 800px; margin-left: auto; margin-right: auto;">
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
 
-                <div class="form-group">
-                    <label for="quality_{{ image.id }}">Quality: {{ image.quality }}</label>
-                    <input type="range" id="quality_{{ image.id }}" name="image_{{ image.id }}_quality" min="0" max="10" value="{{ image.quality }}">
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-        <div style="text-align: center; margin-top: 20px;">
-            <button type="submit" class="save-btn">Save All Changes</button>
-        </div>
-    </form>
+<div class="nav-buttons">
+    {% if prev_patient_id %}
+        <a href="{% url 'annotation_queue' %}?patient_id={{ prev_patient_id }}" class="btn btn-outline-secondary">&laquo; Previous ({{ prev_patient_id }})</a>
+    {% else %}
+        <span class="btn btn-outline-secondary disabled">&laquo; Previous</span>
+    {% endif %}
     
-    <div class="nav-buttons">
-        {% if prev_patient_id %}
-            <a href="{% url 'annotate' prev_patient_id %}">⬅️ Previous Patient</a>
-        {% else %}
-            <a class="disabled">⬅️ Previous Patient</a>
-        {% endif %}
-        
-        {% if next_patient_id %}
-            <a href="{% url 'annotate' next_patient_id %}">Next Patient ➡️</a>
-        {% else %}
-            <a class="disabled">Next Patient ➡️</a>
-        {% endif %}
-    </div>
-
-    <div class="back-link-container">
-        <a href="{% url 'dashboard' %}" class="btn btn-secondary">← Back to Dashboard</a>
-    </div>
-
-    <div class="nav-buttons">
-    ...
-    </div>
-
+    {% if next_patient_id %}
+        <a href="{% url 'annotation_queue' %}?patient_id={{ next_patient_id }}" class="btn btn-outline-primary">Next ({{ next_patient_id }}) &raquo;</a>
+    {% else %}
+        <span class="btn btn-outline-primary disabled">Next &raquo;</span>
+    {% endif %}
 </div>
+
+
+<h2>Annotating Patient: {{ patient.patient_id }}</h2>
+
+<div class="image-gallery">
+    {% for image in images %}
+    <div class="image-box">
+        <h4>{{ image.get_stage_display }} Stage</h4>
+        <img src="{{ image.image_url }}" alt="{{ image.get_stage_display }}" referrerpolicy="no-referrer">
+    </div>
+    {% endfor %}
+</div>
+
+<div class="annotation-form">
+    <h3>Patient Annotation</h3>
+    
+    <form method="post" action="{% url 'save_annotation' %}">
+        {% csrf_token %}
+        
+        <input type="hidden" name="patient_id" value="{{ patient.patient_id }}">
+        
+        <div class="mb-3">
+            <label for="{{ form.vasculitis_present.id_for_label }}" class="form-check-label">{{ form.vasculitis_present.label }}</label>
+            {{ form.vasculitis_present }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.activity.id_for_label }}" class="form-label">{{ form.activity.label }}</label>
+            {{ form.activity }}
+        </div>
+        <div class="mb-3">
+            <label for="{{ form.quality.id_for_label }}" class="form-label">{{ form.quality.label }}</label>
+            <div class="slider-container">
+                {{ form.quality }}
+                <span id="quality-value">
+                    {{ form.quality.value|default:"5" }}
+                </span>
+            </div>
+        </div>
+
+        <button type-"submit" class="btn btn-success">Save and Load Next</button>
+        <a href="{% url 'annotation_queue' %}" class="btn btn-secondary">Back to Queue</a>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Find the slider and the text display element
+    const qualitySlider = document.getElementById('id_quality'); // Note: 'id_quality' is the default ID from Django forms
+    const qualityValue = document.getElementById('quality-value');
+
+    if (qualitySlider && qualityValue) {
+        // Function to update the text
+        function updateValue() {
+            qualityValue.textContent = qualitySlider.value;
+        }
+
+        // Set initial value on page load
+        updateValue();
+
+        // Update value when slider moves
+        qualitySlider.addEventListener('input', updateValue);
+    }
+});
+</script>
 {% endblock %}
