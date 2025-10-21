@@ -162,5 +162,5 @@ AUTHENTICATION_BACKENDS = [
     'allauth.account.auth_backends.AuthenticationBackend',
 ]
 
-SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_LOGIN_ON_GET = True
 GOOGLE_SERVICE_ACCOUNT_KEY = os.path.join(BASE_DIR, 'service-account.json')

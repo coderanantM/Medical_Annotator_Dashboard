@@ -91,30 +91,8 @@
 
     <!-- Google Login Button -->
     <a class="google-btn" href="{% provider_login_url 'google' %}">
-        <span>Sign in with Google</span>
+        <span>Sign in with</span>
         <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo_2013_Google.png" alt="Google logo">
     </a>
-
-    <div class="divider">or</div>
-
-    <form method="post" action="{% url 'account_login' %}">
-        {% csrf_token %}
-        {% if form.errors %}
-            <ul class="errorlist">
-                {% for field in form %}
-                    {% for error in field.errors %}
-                        <li>{{ error }}</li>
-                    {% endfor %}
-                {% endfor %}
-                {% for error in form.non_field_errors %}
-                    <li>{{ error }}</li>
-                {% endfor %}
-            </ul>
-        {% endif %}
-        {{ form.as_p }}
-        <button type="submit">Login</button>
-    </form>
-
-    
 </div>
 {% endblock %}
