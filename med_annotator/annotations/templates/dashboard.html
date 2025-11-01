@@ -1,76 +1,63 @@
 {% extends 'base.html' %}
-
 {% block content %}
+
 {% if messages %}
-  <div class="container-fluid" style="margin-top: 1em;">
+  <div class="container mt-3">
     {% for message in messages %}
-      <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
         {{ message }}
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
       </div>
     {% endfor %}
   </div>
 {% endif %}
-<style>
-    .dashboard-container { max-width: 900px; margin: auto; }
-    .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em; }
-    .add-btn { background-color: #28a745; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; }
-    
-    .patient-table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
-    .patient-table th, .patient-table td { padding: 12px 15px; border-bottom: 1px solid #ddd; text-align: left; }
-    .patient-table th { background-color: #f4f4f9; }
-    .patient-table tr:hover { background-color: #f9f9f9; }
 
-    .actions .btn { 
-        padding: 8px 12px; 
-        text-decoration: none; 
-        color: white; 
-        border-radius: 5px; 
-        margin-right: 5px;
-        font-size: 14px;
-    }
-    .profile-btn { background-color: #17a2b8; } /* Teal */
-    .report-btn { background-color: #007bff; }  /* Blue */
-</style>
+<div class="container dashboard-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-primary">Doctor Dashboard</h2>
+        <a href="{% url 'sync_drive' %}" class="btn btn-success shadow-sm">
+            <i class="bi bi-cloud-arrow-down"></i> Sync with Google Drive
+        </a>
+    </div>
 
-<div class="dashboard-container">
-    <h2>Doctor Dashboard</h2>
-    
-    <a href="{% url 'sync_drive' %}" class="btn btn-primary mb-3">
-        Sync with Google Drive
-    </a>
-    
-    <table class="table table-hover">
-        <thead>
-            <tr>
-                <th>Patient ID</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for patient in patients %}
-            <tr>
-                <td>{{ patient.patient_id }}</td>
-                <td>
-                    {% if patient.is_annotated %}
-                        <span class="badge bg-success">Annotated</span>
-                    {% else %}
-                        <span class="badge bg-warning text-dark">Pending</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'annotate' patient.patient_id %}" class="btn btn-sm btn-info">
-                        View / Annotate
-                    </a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="3">No patients found. Try syncing with Google Drive.</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Patient ID</th>
+                        <th>Status</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for patient in patients %}
+                    <tr>
+                        <td class="fw-semibold">{{ patient.patient_id }}</td>
+                        <td>
+                            {% if patient.is_annotated %}
+                                <span class="badge bg-success">Annotated</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'annotate' patient.patient_id %}" class="btn btn-sm btn-info shadow-sm">
+                                View / Annotate
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted py-4">
+                            No patients found. Try syncing with Google Drive.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+
 {% endblock %}
