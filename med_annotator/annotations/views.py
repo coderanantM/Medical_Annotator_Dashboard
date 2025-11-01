@@ -86,6 +86,7 @@ class AnnotationQueueView(LoginRequiredMixin, View):
         try:
             # 1. Authenticate using the Service Account JSON file
             SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+            SERVICE_ACCOUNT_FILE = 'service-account.json'
             creds = service_account.Credentials.from_service_account_file(
                 settings.GOOGLE_SERVICE_ACCOUNT_KEY, scopes=SCOPES)
             service = build('drive', 'v3', credentials=creds)
