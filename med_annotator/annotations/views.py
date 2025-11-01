@@ -5,7 +5,12 @@ from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db import IntegrityError, transaction
-from django.conf import settings # <-- Import settings
+from django.conf import settings
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+import os
+import googleapiclient.discovery
+import googleapiclient.errors
 
 # --- NEW IMPORTS FOR SERVICE ACCOUNT ---
 from google.oauth2 import service_account
@@ -80,17 +85,23 @@ class AnnotationQueueView(LoginRequiredMixin, View):
 
     # --- THIS IS THE NEW SYNC FUNCTION ---
     def sync_drive(self, request):
-        MAIN_FOLDER_ID = "1_vDh3Oizwndg_9Q7D8yJPjERswzZwocu" # <-- VERIFY THIS IS CORRECT
+        MAIN_FOLDER_ID = "1_vDh3Oizwndg_9Q7D8yJPjERswzZwocu"
         FILENAME_REGEX = re.compile(r'(early|mid|late)', re.IGNORECASE)
-        
+
         try:
             # 1. Authenticate using the Service Account JSON file
             SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-            SERVICE_ACCOUNT_FILE = 'service-account.json'
-            creds = service_account.Credentials.from_service_account_file(
-                settings.GOOGLE_SERVICE_ACCOUNT_KEY, scopes=SCOPES)
-            service = build('drive', 'v3', credentials=creds)
-            
+            SERVICE_ACCOUNT_FILE = os.path.join(settings.BASE_DIR, 'service-account.json')
+            if not os.path.exists(SERVICE_ACCOUNT_FILE):
+                raise FileNotFoundError("Service Account key file not found. Make sure 'service-account.json' is in your project root.")
+
+            credentials = service_account.Credentials.from_service_account_file(
+                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+            )
+
+            # Use googleapiclient.discovery.build directly (not from googleapiclient.discovery import build)
+            service = googleapiclient.discovery.build('drive', 'v3', credentials=credentials)
+
             # 2. Find all sub-folders (C7, C11, etc.)
             folder_query = f"'{MAIN_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder'"
             results = service.files().list(q=folder_query, fields="files(id, name)").execute()
@@ -101,15 +112,15 @@ class AnnotationQueueView(LoginRequiredMixin, View):
                 return
 
             new_patients_created = 0
-            
+
             # 3. Process each folder
             with transaction.atomic():
                 for folder in patient_folders:
                     patient_id = folder['name'].upper()
                     folder_id = folder['id']
-                    
+
                     if Patient.objects.filter(patient_id=patient_id).exists():
-                        continue 
+                        continue
 
                     # 4. Find files inside the folder
                     file_query = f"'{folder_id}' in parents"
@@ -121,26 +132,26 @@ class AnnotationQueueView(LoginRequiredMixin, View):
                         match = FILENAME_REGEX.search(file['name'])
                         if match:
                             stages[match.group(1).lower()] = file['id']
-                    
+
                     # 5. Create patient if all 3 stages are found
                     if 'early' in stages and 'mid' in stages and 'late' in stages:
                         patient = Patient.objects.create(patient_id=patient_id)
                         new_patients_created += 1
-                        
+
                         PatientImage.objects.create(patient=patient, stage='early', image_url=self.get_drive_link(stages['early']))
                         PatientImage.objects.create(patient=patient, stage='mid', image_url=self.get_drive_link(stages['mid']))
                         PatientImage.objects.create(patient=patient, stage='late', image_url=self.get_drive_link(stages['late']))
-            
+
             if new_patients_created > 0:
                 messages.success(request, f"Sync complete. Found {new_patients_created} new patients.")
             else:
                 messages.info(request, "Sync complete. No new patients found.")
 
-        except FileNotFoundError:
-            # This error happens if the 'service-account.json' file is missing
-            raise Exception("Service Account key file not found. Make sure 'service-account.json' is in your project root.")
+        except FileNotFoundError as fnf:
+            raise Exception(str(fnf))
+        except googleapiclient.errors.HttpError as api_error:
+            raise Exception(f"Google API error: {api_error}")
         except Exception as e:
-            # This will catch any other error (e.g., API not enabled, folder not shared)
             raise Exception(f"An error occurred: {e}")
 
     def get_drive_link(self, file_id):
