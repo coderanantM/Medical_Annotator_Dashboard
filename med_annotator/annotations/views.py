@@ -4,7 +4,8 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
-from django.db import IntegrityError, transaction
+from django.db import transaction
+from django.urls import reverse
 from django.conf import settings
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -17,49 +18,77 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 # --- END NEW IMPORTS ---
 
-from .models import Patient, PatientImage
+from .models import Patient, PatientImage, Annotation
 from .forms import PatientAnnotationForm
 
 # (This is the new view from our previous conversation)
 class AnnotationQueueView(LoginRequiredMixin, View):
     
     def get(self, request):
-        # Check if a specific patient is requested (for next/prev buttons)
-        requested_patient_id = request.GET.get('patient_id')
-        
-        if requested_patient_id:
-            next_patient = Patient.objects.filter(patient_id=requested_patient_id).first()
-        else:
-            # 1. Find the first unannotated patient
-            next_patient = Patient.objects.filter(is_annotated=False).order_by('patient_id').first()
-        
-        if not next_patient:
-            # 2. If no patient, try to sync
+        # 1. Run the sync if the database is empty (for first-time setup)
+        if Patient.objects.count() == 0:
             try:
                 self.sync_drive(request)
             except Exception as e:
                 messages.error(request, f"Error during sync: {e}")
                 return render(request, 'annotation_complete.html')
 
-            # 3. After syncing, try finding a patient again
-            next_patient = Patient.objects.filter(is_annotated=False).order_by('patient_id').first()
+        # --- NEW PER-USER LOGIC ---
+        
+        # 2. Get the patient to show.
+        #    Did the user click a "Next/Prev" button?
+        requested_patient_id_str = request.GET.get('patient_id')
+        
+        patient_to_load = None
+        
+        if requested_patient_id_str:
+            # If yes, load that specific patient
+            patient_to_load = Patient.objects.filter(patient_id=requested_patient_id_str).first()
+        else:
+            # If no, find the *next patient this user hasn't annotated*
             
-            if not next_patient:
-                # 4. If still no patient, all work is done
-                messages.success(request, "All patients have been annotated. Sync to find more.")
+            # Get Patient IDs this user *has* touched
+            annotated_patient_pks = Annotation.objects.filter(
+                user=request.user
+            ).values_list('patient_id', flat=True)
+            
+            # Find the first patient that is NOT in that list
+            patient_to_load = Patient.objects.exclude(
+                pk__in=annotated_patient_pks
+            ).order_by('patient_id').first()
+
+            if not patient_to_load:
+                # User has annotated everything.
+                # Just show a "complete" message.
+                messages.success(request, "You have annotated all available patients.")
                 return render(request, 'annotation_complete.html')
 
-        # 5. We have a patient. Prepare the page.
-        patient = next_patient
-        images = patient.images.order_by('stage')
-        form = PatientAnnotationForm(instance=patient)
+        if not patient_to_load:
+            # This should only happen if sync returns 0 patients
+            messages.error(request, "No patients found in the database.")
+            return render(request, 'annotation_complete.html')
+
+        # 3. --- THIS IS THE MAGIC ---
+        #    We have a patient. Now get (or create) this user's
+        #    personal annotation for it.
+        annotation, created = Annotation.objects.get_or_create(
+            user=request.user,
+            patient=patient_to_load,
+            # 'defaults' can be used to set initial values if you want
+            # defaults={'quality': 5} 
+        )
+
+        # 4. Prepare the context for the template
+        form = PatientAnnotationForm(instance=annotation)
+        images = patient_to_load.images.order_by('stage')
         
-        # 6. Find "Previous" and "Next" patients for navigation
-        prev_patient = Patient.objects.filter(patient_id__lt=patient.patient_id).order_by('patient_id').last()
-        next_patient = Patient.objects.filter(patient_id__gt=patient.patient_id).order_by('patient_id').first()
+        # For Next/Prev buttons
+        prev_patient = Patient.objects.filter(patient_id__lt=patient_to_load.patient_id).order_by('-patient_id').first()
+        next_patient = Patient.objects.filter(patient_id__gt=patient_to_load.patient_id).order_by('patient_id').first()
 
         context = {
-            'patient': patient,
+            'patient': patient_to_load, # The patient (for images, ID)
+            'annotation': annotation, # The user's specific work (for the form)
             'images': images,
             'form': form,
             'prev_patient_id': prev_patient.patient_id if prev_patient else None,
@@ -67,20 +96,65 @@ class AnnotationQueueView(LoginRequiredMixin, View):
         }
         return render(request, 'annotation_page.html', context)
 
+
     def post(self, request):
-        patient_id = request.POST.get('patient_id')
-        patient = get_object_or_404(Patient, patient_id=patient_id)
-        form = PatientAnnotationForm(request.POST, instance=patient)
+        # This logic now saves an ANNOTATION, not a Patient
+        
+        # Get the hidden Annotation ID from the form
+        annotation_id = request.POST.get('annotation_id')
+        
+        # Find *this user's* annotation.
+        # This is a security check so a user can't edit someone else's work.
+        annotation = get_object_or_404(
+            Annotation, 
+            id=annotation_id, 
+            user=request.user
+        )
+        
+        form = PatientAnnotationForm(request.POST, instance=annotation)
         
         if form.is_valid():
-            annotated_patient = form.save(commit=False)
-            annotated_patient.is_annotated = True 
-            annotated_patient.save()
-            messages.success(request, f"Annotations for {patient.patient_id} saved.")
-        else:
-            messages.error(request, "There was an error saving the form.")
+            form.save() # This updates the user's existing annotation
+            messages.success(request, f"Annotations for {annotation.patient.patient_id} saved.")
 
-        return redirect('annotation_queue')
+            action = request.POST.get('action', 'save')
+            if action == 'save_and_next':
+                # Find the next *un-annotated* patient
+                annotated_patient_pks = Annotation.objects.filter(
+                    user=request.user
+                ).values_list('patient_id', flat=True)
+                
+                next_patient_to_load = Patient.objects.exclude(
+                    pk__in=annotated_patient_pks
+                ).order_by('patient_id').first()
+
+                if next_patient_to_load:
+                    # Send them to the next patient's page
+                    redirect_url = f"{reverse('annotation_queue')}?patient_id={next_patient_to_load.patient_id}"
+                    return redirect(redirect_url)
+                else:
+                    # They are done, send to "complete" page
+                    messages.success(request, "All patients annotated!")
+                    return redirect('annotation_queue')
+            else:
+                # User clicked "Save", just reload the same patient page
+                redirect_url = f"{reverse('annotation_queue')}?patient_id={annotation.patient.patient_id}"
+                return redirect(redirect_url)
+        else:
+            # Form was invalid, re-render the page with errors
+            patient = annotation.patient
+            images = patient.images.order_by('stage')
+            prev_patient = Patient.objects.filter(patient_id__lt=patient.patient_id).order_by('-patient_id').first()
+            next_patient = Patient.objects.filter(patient_id__gt=patient.patient_id).order_by('patient_id').first()
+            context = {
+                'patient': patient,
+                'annotation': annotation,
+                'images': images,
+                'form': form, # The invalid form with errors
+                'prev_patient_id': prev_patient.patient_id if prev_patient else None,
+                'next_patient_id': next_patient.patient_id if next_patient else None,
+            }
+            return render(request, 'annotation_page.html', context)
 
 
     # --- THIS IS THE NEW SYNC FUNCTION ---
