@@ -1,232 +1,292 @@
-# annotations/views.py
+import os
 import re
+from collections import defaultdict
+
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+
+from django.urls import reverse
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.db import transaction
-from django.urls import reverse
-from django.conf import settings
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-import os
-import googleapiclient.discovery
-import googleapiclient.errors
+from django.utils import timezone
 
-# --- NEW IMPORTS FOR SERVICE ACCOUNT ---
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-# --- END NEW IMPORTS ---
-
-from .models import Patient, PatientImage, Annotation
+from .models import Patient, PatientImage, Annotation, CaseComment
 from .forms import PatientAnnotationForm
 
-# (This is the new view from our previous conversation)
+
+# ================================
+# Constants
+# ================================
+MAIN_FOLDER_ID = "1_vDh3Oizwndg_9Q7D8yJPjERswzZwocu"
+FOLDER_MIME = "application/vnd.google-apps.folder"
+STAGE_REGEX = re.compile(r"(early|mid|late)", re.IGNORECASE)
+
+
+# ================================
+# Recursive Google Drive Scanner
+# ================================
+def fetch_images_recursive(service, folder_id, patient, collected, folder_name=""):
+    results = service.files().list(
+        q=f"'{folder_id}' in parents and trashed=false",
+        fields="files(id, name, mimeType)"
+    ).execute()
+
+    for f in results.get("files", []):
+
+        # Recurse into subfolders
+        if f["mimeType"] == FOLDER_MIME:
+            fetch_images_recursive(
+                service,
+                f["id"],
+                patient,
+                collected,
+                folder_name=f["name"]
+            )
+            continue
+
+        # Ignore non-images
+        if not f["mimeType"].startswith("image/"):
+            continue
+
+        # Determine stage
+        match = STAGE_REGEX.search(f["name"])
+        if match:
+            stage = match.group(1).lower()
+        else:
+            folder_match = STAGE_REGEX.search(folder_name.lower())
+            stage = folder_match.group(1).lower() if folder_match else "mid"
+
+        image_url = f"https://lh3.googleusercontent.com/d/{f['id']}"
+
+        collected.append(
+            PatientImage(
+                patient=patient,
+                stage=stage,
+                image_url=image_url
+            )
+        )
+
+
+# ================================
+# Main Annotation View
+# ================================
 class AnnotationQueueView(LoginRequiredMixin, View):
-    
+
+    # ----------------------------
+    # GET
+    # ----------------------------
     def get(self, request):
-        # 1. Run the sync if the database is empty (for first-time setup)
-        if Patient.objects.count() == 0:
+
+        # Sync from Drive if requested
+        if request.GET.get("sync") == "true":
             try:
-                self.sync_drive(request)
+                self.sync_drive()
+                messages.success(request, "Images synced successfully.")
+                return redirect("annotation_queue")
             except Exception as e:
-                messages.error(request, f"Error during sync: {e}")
-                return render(request, 'annotation_complete.html')
+                messages.error(request, f"Drive sync failed: {e}")
+                return redirect("annotation_queue")
 
-        # --- NEW PER-USER LOGIC ---
-        
-        # 2. Get the patient to show.
-        #    Did the user click a "Next/Prev" button?
-        requested_patient_id_str = request.GET.get('patient_id')
-        
-        patient_to_load = None
-        
-        if requested_patient_id_str:
-            # If yes, load that specific patient
-            patient_to_load = Patient.objects.filter(patient_id=requested_patient_id_str).first()
-        else:
-            # If no, find the *next patient this user hasn't annotated*
-            
-            # Get Patient IDs this user *has* touched
-            annotated_patient_pks = Annotation.objects.filter(
-                user=request.user
-            ).values_list('patient_id', flat=True)
-            
-            # Find the first patient that is NOT in that list
-            patient_to_load = Patient.objects.exclude(
-                pk__in=annotated_patient_pks
-            ).order_by('patient_id').first()
+        requested_patient_id = request.GET.get("patient_id")
 
-            if not patient_to_load:
-                # User has annotated everything.
-                # Just show a "complete" message.
-                messages.success(request, "You have annotated all available patients.")
-                return render(request, 'annotation_complete.html')
-
-        if not patient_to_load:
-            # This should only happen if sync returns 0 patients
-            messages.error(request, "No patients found in the database.")
-            return render(request, 'annotation_complete.html')
-
-        # 3. --- THIS IS THE MAGIC ---
-        #    We have a patient. Now get (or create) this user's
-        #    personal annotation for it.
-        annotation, created = Annotation.objects.get_or_create(
+        # Patients already annotated by this user
+        annotated_ids = Annotation.objects.filter(
             user=request.user,
-            patient=patient_to_load,
-            # 'defaults' can be used to set initial values if you want
-            # defaults={'quality': 5} 
-        )
+            annotated_at__isnull=False
+        ).values_list("patient__patient_id", flat=True)
 
-        # 4. Prepare the context for the template
-        form = PatientAnnotationForm(instance=annotation)
-        images = patient_to_load.images.order_by('stage')
-        
-        # For Next/Prev buttons
-        prev_patient = Patient.objects.filter(patient_id__lt=patient_to_load.patient_id).order_by('-patient_id').first()
-        next_patient = Patient.objects.filter(patient_id__gt=patient_to_load.patient_id).order_by('patient_id').first()
-
-        context = {
-            'patient': patient_to_load, # The patient (for images, ID)
-            'annotation': annotation, # The user's specific work (for the form)
-            'images': images,
-            'form': form,
-            'prev_patient_id': prev_patient.patient_id if prev_patient else None,
-            'next_patient_id': next_patient.patient_id if next_patient else None,
-        }
-        return render(request, 'annotation_page.html', context)
-
-
-    def post(self, request):
-        # This logic now saves an ANNOTATION, not a Patient
-        
-        # Get the hidden Annotation ID from the form
-        annotation_id = request.POST.get('annotation_id')
-        
-        # Find *this user's* annotation.
-        # This is a security check so a user can't edit someone else's work.
-        annotation = get_object_or_404(
-            Annotation, 
-            id=annotation_id, 
-            user=request.user
-        )
-        
-        form = PatientAnnotationForm(request.POST, instance=annotation)
-        
-        if form.is_valid():
-            form.save() # This updates the user's existing annotation
-            messages.success(request, f"Annotations for {annotation.patient.patient_id} saved.")
-
-            action = request.POST.get('action', 'save')
-            if action == 'save_and_next':
-                # Find the next *un-annotated* patient
-                annotated_patient_pks = Annotation.objects.filter(
-                    user=request.user
-                ).values_list('patient_id', flat=True)
-                
-                next_patient_to_load = Patient.objects.exclude(
-                    pk__in=annotated_patient_pks
-                ).order_by('patient_id').first()
-
-                if next_patient_to_load:
-                    # Send them to the next patient's page
-                    redirect_url = f"{reverse('annotation_queue')}?patient_id={next_patient_to_load.patient_id}"
-                    return redirect(redirect_url)
-                else:
-                    # They are done, send to "complete" page
-                    messages.success(request, "All patients annotated!")
-                    return redirect('annotation_queue')
-            else:
-                # User clicked "Save", just reload the same patient page
-                redirect_url = f"{reverse('annotation_queue')}?patient_id={annotation.patient.patient_id}"
-                return redirect(redirect_url)
+        # Choose patient
+        if requested_patient_id:
+            patient = Patient.objects.filter(
+                patient_id=requested_patient_id
+            ).first()
         else:
-            # Form was invalid, re-render the page with errors
-            patient = annotation.patient
-            images = patient.images.order_by('stage')
-            prev_patient = Patient.objects.filter(patient_id__lt=patient.patient_id).order_by('-patient_id').first()
-            next_patient = Patient.objects.filter(patient_id__gt=patient.patient_id).order_by('patient_id').first()
-            context = {
-                'patient': patient,
-                'annotation': annotation,
-                'images': images,
-                'form': form, # The invalid form with errors
-                'prev_patient_id': prev_patient.patient_id if prev_patient else None,
-                'next_patient_id': next_patient.patient_id if next_patient else None,
-            }
-            return render(request, 'annotation_page.html', context)
+            patient = Patient.objects.exclude(
+                patient_id__in=annotated_ids
+            ).order_by("patient_id").first()
 
-
-    # --- THIS IS THE NEW SYNC FUNCTION ---
-    def sync_drive(self, request):
-        MAIN_FOLDER_ID = "1_vDh3Oizwndg_9Q7D8yJPjERswzZwocu"
-        FILENAME_REGEX = re.compile(r'(early|mid|late)', re.IGNORECASE)
-
-        try:
-            # 1. Authenticate using the Service Account JSON file
-            SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
-            SERVICE_ACCOUNT_FILE = os.path.join(settings.BASE_DIR, 'service-account.json')
-            if not os.path.exists(SERVICE_ACCOUNT_FILE):
-                raise FileNotFoundError("Service Account key file not found. Make sure 'service-account.json' is in your project root.")
-
-            credentials = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        if not patient:
+            return render(
+                request,
+                "annotation_complete.html",
+                {"no_patients": True}
             )
 
-            # Use googleapiclient.discovery.build directly (not from googleapiclient.discovery import build)
-            service = googleapiclient.discovery.build('drive', 'v3', credentials=credentials)
+        # Get or create annotation
+        annotation, _ = Annotation.objects.get_or_create(
+            patient=patient,
+            user=request.user
+        )
 
-            # 2. Find all sub-folders (C7, C11, etc.)
-            folder_query = f"'{MAIN_FOLDER_ID}' in parents and mimeType = 'application/vnd.google-apps.folder'"
-            results = service.files().list(q=folder_query, fields="files(id, name)").execute()
-            patient_folders = results.get('files', [])
+        form = PatientAnnotationForm(instance=annotation)
 
-            if not patient_folders:
-                messages.warning(request, "No patient folders found. Did you share the folder with the service account?")
-                return
+        # Shared committed comments
+        shared_comments = (
+            CaseComment.objects
+            .filter(patient=patient)
+            .select_related("user")
+            .order_by("id")
+        )
 
-            new_patients_created = 0
 
-            # 3. Process each folder
+        # Previous user's annotation (read-only reference)
+        previous_annotation = Annotation.objects.filter(
+            patient=patient
+        ).exclude(user=request.user).order_by("-annotated_at").first()
+
+        # Group images by stage
+        image_groups = defaultdict(list)
+        for img in patient.images.all():
+            image_groups[img.stage].append(img)
+            
+        all_patients = list(
+            Patient.objects.order_by("patient_id").values_list("patient_id", flat=True)
+        )
+        index = all_patients.index(patient.patient_id)
+        prev_patient_id = all_patients[index - 1] if index > 0 else None
+        next_patient_id = (
+            all_patients[index + 1] if index < len(all_patients) - 1 else None
+        )
+
+        context = {
+            "patient": patient,
+            "annotation": annotation,
+            "form": form,
+            "image_groups": dict(image_groups),
+            "stages": ["early", "mid", "late"],
+            "shared_comments": shared_comments,
+            "previous_annotation": previous_annotation,
+            "next_patient_id": next_patient_id,
+            "prev_patient_id": prev_patient_id,
+        }
+
+        return render(request, "annotation_page.html", context)
+
+    # ----------------------------
+    # POST
+    # ----------------------------
+    def post(self, request):
+
+        annotation_id = request.POST.get("annotation_id")
+
+        annotation = get_object_or_404(
+            Annotation,
+            id=annotation_id,
+            user=request.user
+        )
+
+        form = PatientAnnotationForm(
+            request.POST,
+            instance=annotation
+        )
+
+        if not form.is_valid():
+            return self.get(request)
+
+        action = request.POST.get("action", "save")
+
+        with transaction.atomic():
+            annotation = form.save(commit=False)
+
+            # Submit & Next = final annotation
+            if action == "save_and_next":
+                annotation.annotated_at = timezone.now()
+
+                comment_text = form.cleaned_data.get("comment")
+                if comment_text:
+                    CaseComment.objects.create(
+                        patient=annotation.patient,
+                        user=request.user,
+                        comment=comment_text
+                    )
+
+            annotation.save()
+
+        messages.success(
+            request,
+            f"Annotations saved for {annotation.patient.patient_id}"
+        )
+
+        # Load next unannotated patient
+        if action == "save_and_next":
+            annotated_ids = Annotation.objects.filter(
+                user=request.user,
+                annotated_at__isnull=False
+            ).values_list("patient__patient_id", flat=True)
+
+            next_patient = Patient.objects.exclude(
+                patient_id__in=annotated_ids
+            ).order_by("patient_id").first()
+
+            if next_patient:
+                return redirect(
+                    f"{reverse('annotation_queue')}?patient_id={next_patient.patient_id}"
+                )
+
+            messages.success(request, "All patients annotated.")
+            return redirect("annotation_queue")
+
+        # Just save
+        return redirect(
+            f"{reverse('annotation_queue')}?patient_id={annotation.patient.patient_id}"
+        )
+
+    # ----------------------------
+    # Google Drive Sync
+    # ----------------------------
+    def sync_drive(self):
+
+        SERVICE_ACCOUNT_FILE = os.path.join(
+            settings.BASE_DIR,
+            "service-account.json"
+        )
+
+        credentials = service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE,
+            scopes=["https://www.googleapis.com/auth/drive.readonly"]
+        )
+
+        service = build("drive", "v3", credentials=credentials)
+
+        results = service.files().list(
+            q=f"'{MAIN_FOLDER_ID}' in parents and mimeType='{FOLDER_MIME}'",
+            fields="files(id, name)"
+        ).execute()
+
+        folders = results.get("files", [])
+
+        folders.sort(
+            key=lambda x: [
+                int(t) if t.isdigit() else t
+                for t in re.split(r"(\d+)", x["name"])
+            ]
+        )
+
+        for folder in folders:
+            patient_id = folder["name"].strip().upper()
+            patient, _ = Patient.objects.get_or_create(
+                patient_id=patient_id
+            )
+
+            collected = []
+            fetch_images_recursive(
+                service,
+                folder["id"],
+                patient,
+                collected,
+                folder_name=folder["name"]
+            )
+
             with transaction.atomic():
-                for folder in patient_folders:
-                    patient_id = folder['name'].upper()
-                    folder_id = folder['id']
+                PatientImage.objects.filter(
+                    patient=patient
+                ).delete()
+                PatientImage.objects.bulk_create(collected)
 
-                    if Patient.objects.filter(patient_id=patient_id).exists():
-                        continue
-
-                    # 4. Find files inside the folder
-                    file_query = f"'{folder_id}' in parents"
-                    file_results = service.files().list(q=file_query, fields="files(id, name)").execute()
-                    files_in_folder = file_results.get('files', [])
-
-                    stages = {}
-                    for file in files_in_folder:
-                        match = FILENAME_REGEX.search(file['name'])
-                        if match:
-                            stages[match.group(1).lower()] = file['id']
-
-                    # 5. Create patient if all 3 stages are found
-                    if 'early' in stages and 'mid' in stages and 'late' in stages:
-                        patient = Patient.objects.create(patient_id=patient_id)
-                        new_patients_created += 1
-
-                        PatientImage.objects.create(patient=patient, stage='early', image_url=self.get_drive_link(stages['early']))
-                        PatientImage.objects.create(patient=patient, stage='mid', image_url=self.get_drive_link(stages['mid']))
-                        PatientImage.objects.create(patient=patient, stage='late', image_url=self.get_drive_link(stages['late']))
-
-            if new_patients_created > 0:
-                messages.success(request, f"Sync complete. Found {new_patients_created} new patients.")
-            else:
-                messages.info(request, "Sync complete. No new patients found.")
-
-        except FileNotFoundError as fnf:
-            raise Exception(str(fnf))
-        except googleapiclient.errors.HttpError as api_error:
-            raise Exception(f"Google API error: {api_error}")
-        except Exception as e:
-            raise Exception(f"An error occurred: {e}")
-
-    def get_drive_link(self, file_id):
-        return f'https://drive.google.com/thumbnail?id={file_id}&sz=w1000'
+            print(
+                f"[SYNC] {patient_id}: {len(collected)} images"
+            )

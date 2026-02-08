@@ -19,9 +19,9 @@
   </div>
 {% endif %}
 
-<div class="complete-container">
-    <h2>All Annotations Complete</h2>
-    <p>You have annotated all available patients.</p>
-    <a href="{% url 'annotation_queue' %}" class="btn btn-primary">Check for New Patients</a>
+<div class="mt-4">
+    <a href="{% url 'annotation_queue' %}?sync=true" class="btn btn-primary btn-lg px-5 shadow">
+        <i class="bi bi-arrow-repeat"></i> Sync with Google Drive
+    </a>
 </div>
 {% endblock %}

@@ -8,7 +8,7 @@ class PatientAnnotationForm(forms.ModelForm):
         model = Annotation  # <-- 2. Change model to Annotation
         
         # These fields are all correct, as they are on the Annotation model
-        fields = ['vasculitis_present', 'activity', 'quality']
+        fields = ['vasculitis_present', 'activity', 'quality', 'comment']
         
         # All your widgets are perfect and can stay the same
         widgets = {
@@ -23,6 +23,7 @@ class PatientAnnotationForm(forms.ModelForm):
                     'step': '1'
                 }
             ),
+            'comment': forms.Textarea(attrs={'rows': 2, 'placeholder': 'Add your comments here...'}),
         }
         labels = {
             'quality': 'Image Quality (1-10)'
